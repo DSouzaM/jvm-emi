@@ -1,37 +1,23 @@
-package com.mattdsouza;
+package com.mattdsouza.emi;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-import soot.*;
-import soot.tagkit.BytecodeOffsetTag;
-import soot.tagkit.Tag;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-public class Main {
-    public static void main(String[] args) {
-        final String COVERAGE_REPORT = "jacoco.xml";
-        BytecodeCoverage coverage = null;
-        try {
-            coverage = BytecodeCoverage.fromFile(COVERAGE_REPORT);
-        } catch (ParserConfigurationException | IOException | SAXException e) {
-            e.printStackTrace();
-        }
-
-        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", new MyTransformer(coverage)));
-        soot.Main.main(args);
-    }
-}
-
-
+// Abstraction over a JaCoCo coverage report modified to include bytecode offsets.
+// Includes helper methods to parse coverage reports and determine which offsets are covered.
 class BytecodeCoverage {
     enum Level {
         UNKNOWN,
@@ -86,43 +72,5 @@ class BytecodeCoverage {
             coverage.put(className, classCoverage);
         }
         return new BytecodeCoverage(coverage);
-    }
-}
-
-class MyTransformer extends BodyTransformer {
-    BytecodeCoverage coverage;
-
-    MyTransformer(BytecodeCoverage coverage) {
-        this.coverage = coverage;
-    }
-
-    @Override
-    protected void internalTransform(Body b, String phaseName, Map<String, String> options) {
-        String clazz = b.getMethod().getDeclaringClass().getName();
-        String method = b.getMethod().getName();
-        System.out.println(clazz + "::" + method);
-        UnitPatchingChain units = b.getUnits();
-        Iterator<Unit> unitIt = units.snapshotIterator();
-        while (unitIt.hasNext()) {
-            Unit unit = unitIt.next();
-            Tag offsetTag = unit.getTag("BytecodeOffsetTag");
-
-            int offset;
-            BytecodeCoverage.Level coverageLevel;
-            if (offsetTag == null) {
-                offset = -1;
-                coverageLevel = BytecodeCoverage.Level.LIVE;
-            } else {
-                offset = ((BytecodeOffsetTag) offsetTag).getBytecodeOffset();
-                coverageLevel = coverage.coverageOf(clazz, method, offset);
-            }
-
-            char cov = (coverageLevel == BytecodeCoverage.Level.LIVE) ? ' ' : (coverageLevel == BytecodeCoverage.Level.DEAD) ? '!' : '?';
-            System.out.printf("\t%d\t%c\t%s\n", offset, cov, unit.toString());
-
-            if (coverageLevel == BytecodeCoverage.Level.DEAD) {
-                units.remove(unit);
-            }
-        }
     }
 }

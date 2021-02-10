@@ -1,22 +1,26 @@
 package example;
 
 public class Main {
-    String name;
+    String[] args;
 
     public static void main(String[] args) throws Exception {
-        Main m = new Main("foo");
-        m.bar("a");
+        Main m = new Main(args);
+        m.bar();
     }
 
-    Main(String name) {
-        this.name = name;
+    Main(String[] args) {
+        this.args = args;
     }
 
-    String bar(String x) throws Exception {
-        if (x == null) {
-            throw new RuntimeException("oof");
-        } else {
-            return null;
+    void bar() throws Exception {
+        for (String arg: args) {
+            if (arg.equals("foo")) {
+                System.out.println("it's a foo");
+            } else if (arg.equals("bar")) {
+                System.out.println("it's a bar");
+            } else {
+                System.out.println("it's something else");
+            }
         }
     }
 }
