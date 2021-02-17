@@ -80,6 +80,10 @@ public class MutantRegistry {
         return checkDirectory(result);
     }
 
+    public Path getMutantProfilePath(String mutant) throws MutantRegistryException {
+        return getMutant(mutant).resolve("jacoco.xml");
+    }
+
     public Map<String, Path> getMutantOutputs(String mutant) throws MutantRegistryException, IOException {
         Map<String, Path> result = new HashMap<>();
         Path outputDirectory = getMutantOutputPath(mutant);
