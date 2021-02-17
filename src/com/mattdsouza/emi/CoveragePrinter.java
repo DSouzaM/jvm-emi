@@ -41,7 +41,7 @@ public class CoveragePrinter {
         } catch (ParserConfigurationException | IOException | SAXException e) {
             e.printStackTrace();
         }
-        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", new EMIMutator(coverage)));
+        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", new CoveragePrintingTransformer(coverage)));
 
         // Run Soot
         String[] sootArgs = new String[sootOptions.size()];
