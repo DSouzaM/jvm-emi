@@ -23,20 +23,23 @@ public class MutantRegistry {
     }
 
     private final Path root;
+    private final Path mutants;
     private final Path seed;
-    private final Map<Path, Path> expectedOutputs;
+    private final Map<String, Path> expectedOutputs;
 
 
     public MutantRegistry(String root) throws MutantRegistryException, IOException {
         this.root = checkDirectory(Paths.get(root));
+        this.mutants = checkDirectory(this.root.resolve("mutants"));
         this.seed = checkDirectory(this.root.resolve("seed"));
         Path[] inputs = Files.list(checkDirectory(this.root.resolve("inputs"))).toArray(Path[]::new);
         Path outputDirectory = checkDirectory(this.root.resolve("outputs"));
 
-        Map<Path, Path> expectedOutputs = new HashMap<>();
+        // Validate that each input has an output
+        Map<String, Path> expectedOutputs = new HashMap<>();
         for (Path input : inputs) {
             Path output = checkFile(outputDirectory.resolve(input.getFileName()));
-            expectedOutputs.put(input, output);
+            expectedOutputs.put(input.getFileName().toString(), output);
         }
         this.expectedOutputs = Collections.unmodifiableMap(expectedOutputs);
 
@@ -46,20 +49,30 @@ public class MutantRegistry {
         return seed;
     }
 
-    public Map<Path, Path> getExpectedOutputs() {
+    public Map<String, Path> getExpectedOutputs() {
         return expectedOutputs;
     }
 
-    public Path getVariant(String variant) throws MutantRegistryException {
-        return checkDirectory(root.resolve(variant));
+    public Path getMutant(String mutant) throws MutantRegistryException {
+        return checkDirectory(mutants.resolve(mutant));
     }
 
-    public Path createVariant(String variant) throws MutantRegistryException {
-        Path newPath = root.resolve(variant);
+    public Path createMutant(String mutant) throws MutantRegistryException {
+        Path newPath = mutants.resolve(mutant);
         if (Files.exists(newPath)) {
             throw new MutantRegistryException("Path " + newPath.toString() + " already exists.");
         }
         return newPath;
+    }
+
+    public Map<String, Path> getMutantOutputs(String mutant) throws MutantRegistryException {
+        Map<String, Path> result = new HashMap<>();
+        Path outputDirectory = checkDirectory(getMutant(mutant).resolve("outputs"));
+        for (String input : expectedOutputs.keySet()) {
+            Path output = checkFile(outputDirectory.resolve(input));
+            result.put(input, output);
+        }
+        return result;
     }
 
     private static Path checkFile(Path p) throws MutantRegistryException {

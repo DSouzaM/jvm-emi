@@ -3,8 +3,6 @@ package com.mattdsouza.emi;
 import org.apache.commons.cli.*;
 import org.xml.sax.SAXException;
 import soot.*;
-import soot.tagkit.BytecodeOffsetTag;
-import soot.tagkit.Tag;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
@@ -16,12 +14,15 @@ public class MutantGenerator {
         CommandLine options = parseOptions(args);
         String registryPath = options.getOptionValue("registry");
         String variant = options.getOptionValue("variant");
-        String output = options.getOptionValue("output");
+        String newVariant = options.getOptionValue("new-variant");
         String coverageFile = options.getOptionValue("coverage");
+        generateMutant(registryPath, variant, newVariant, coverageFile);
+    }
 
+    public static void generateMutant(String registryPath, String variant, String newVariant, String coverageFile) throws Exception {
         MutantRegistry registry = new MutantRegistry(registryPath);
-        String variantPath = registry.getVariant(variant).toString();
-        String outputPath = registry.createVariant(output).toString();
+        String variantPath = (variant.equals("seed")) ? registry.getSeed().toString() : registry.getMutant(variant).toString();
+        String outputPath = registry.createMutant(newVariant).toString();
 
         List<String> sootOptions = new ArrayList<>();
         // Add classes to Soot classpath
@@ -66,9 +67,9 @@ public class MutantGenerator {
         variant.setRequired(true);
         options.addOption(variant);
 
-        Option output = new Option("o", "output", true, "Path to place mutant");
-        output.setRequired(true);
-        options.addOption(output);
+        Option newVariant = new Option("n", "new-variant", true, "New variant name");
+        newVariant.setRequired(true);
+        options.addOption(newVariant);
 
         Option coverage = new Option("c", "coverage", true, "JaCoCo coverage report file (XML)");
         coverage.setRequired(true);
