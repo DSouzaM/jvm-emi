@@ -10,10 +10,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 // Abstraction over a JaCoCo coverage report modified to include bytecode offsets.
@@ -26,9 +23,11 @@ class BytecodeCoverage {
     }
 
     private final Map<String, Map<String, Set<Integer>>> coverage;
+    private final Set<String> methodsReached;
 
-    private BytecodeCoverage(Map<String, Map<String, Set<Integer>>> coverage) {
+    private BytecodeCoverage(Map<String, Map<String, Set<Integer>>> coverage, Set<String> methodsReached) {
         this.coverage = coverage;
+        this.methodsReached = methodsReached;
     }
 
     public Level coverageOf(String className, String methodName, int offset) {
@@ -37,6 +36,10 @@ class BytecodeCoverage {
         Set<Integer> methodCoverage = classCoverage.get(methodName);
         if (methodCoverage == null) return Level.UNKNOWN;
         return (methodCoverage.contains(offset)) ? Level.LIVE : Level.DEAD;
+    }
+
+    public boolean methodReached(String className, String methodName) {
+        return methodsReached.contains(String.format("%s::%s", className, methodName));
     }
 
     public static BytecodeCoverage fromFile(String coverageFile) throws ParserConfigurationException, IOException, SAXException {
@@ -49,6 +52,7 @@ class BytecodeCoverage {
         Document doc = builder.parse(file);
 
         Map<String, Map<String, Set<Integer>>> coverage = new HashMap<>();
+        Set<String> methodsReached = new HashSet<>();
         NodeList classes = doc.getElementsByTagName("class");
         for (int i = 0; i < classes.getLength(); i++) {
             Element clazz = (Element) classes.item(i);
@@ -63,14 +67,22 @@ class BytecodeCoverage {
                 NodeList bytecodes = method.getElementsByTagName("bytecode");
                 assert bytecodes.getLength() == 1;
                 Element bytecode = (Element) bytecodes.item(0);
-                Set<Integer> methodCoverage = Arrays.stream(bytecode.getAttribute("offsets")
-                        .split(","))
+                String offsets = bytecode.getAttribute("offsets");
+
+                if (offsets.isEmpty()) {
+                    continue;
+                } else {
+                    methodsReached.add(String.format("%s::%s", className, methodName));
+                }
+
+                Set<Integer> methodCoverage = Arrays.stream(offsets.split(","))
+                        .filter(s -> s.length() > 0)
                         .map(Integer::parseInt)
                         .collect(Collectors.toSet());
                 classCoverage.put(methodName, methodCoverage);
             }
             coverage.put(className, classCoverage);
         }
-        return new BytecodeCoverage(coverage);
+        return new BytecodeCoverage(coverage, methodsReached);
     }
 }

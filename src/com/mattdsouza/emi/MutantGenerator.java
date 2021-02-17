@@ -21,7 +21,7 @@ public class MutantGenerator {
 
     public static void generateMutant(String registryPath, String variant, String newVariant, String coverageFile) throws Exception {
         MutantRegistry registry = new MutantRegistry(registryPath);
-        String variantPath = (variant.equals("seed")) ? registry.getSeed().toString() : registry.getMutant(variant).toString();
+        String variantPath = registry.getMutant(variant).toString();
         String outputPath = registry.createMutant(newVariant).toString();
 
         List<String> sootOptions = new ArrayList<>();

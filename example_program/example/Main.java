@@ -1,26 +1,22 @@
 package example;
 
+import java.util.Scanner;
+
 public class Main {
-    String[] args;
-
-    public static void main(String[] args) throws Exception {
-        Main m = new Main(args);
-        m.bar();
+    public static void main(String[] args) {
+        Scanner s = new Scanner(System.in);
+        while(s.hasNext()) {
+            bar(s.next());
+        }
     }
 
-    Main(String[] args) {
-        this.args = args;
-    }
-
-    void bar() throws Exception {
-        for (String arg: args) {
-            if (arg.equals("foo")) {
-                System.out.println("it's a foo");
-            } else if (arg.equals("bar")) {
-                System.out.println("it's a bar");
-            } else {
-                System.out.println("it's something else");
-            }
+    static void bar(String str) {
+        if (str.equals("foo")) {
+            System.out.println("it's a foo");
+        } else if (str.equals("bar")) {
+            System.out.println("it's a bar");
+        } else {
+            System.out.println("it's something else");
         }
     }
 }

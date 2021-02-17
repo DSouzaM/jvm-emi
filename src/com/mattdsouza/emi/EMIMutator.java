@@ -22,6 +22,11 @@ class EMIMutator extends BodyTransformer {
         String clazz = b.getMethod().getDeclaringClass().getName();
         String method = b.getMethod().getName();
 
+        // Don't mutate unreached methods. We need a liveness trace in order to produce a valid control flow graph.
+        if (!coverage.methodReached(clazz, method)) {
+            return;
+        }
+
         UnitPatchingChain units = b.getUnits();
         Iterator<Unit> unitIt = units.snapshotIterator();
         while (unitIt.hasNext()) {

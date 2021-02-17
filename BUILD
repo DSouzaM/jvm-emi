@@ -5,6 +5,12 @@ java_binary(
 )
 
 java_binary(
+    name = "runner",
+    main_class = "com.mattdsouza.emi.MutantRunner",
+    runtime_deps = [":lib"]
+)
+
+java_binary(
     name = "outputchecker",
     main_class = "com.mattdsouza.emi.OutputChecker",
     runtime_deps = [":lib"]
