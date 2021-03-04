@@ -1,34 +1,22 @@
-package com.mattdsouza.emi;
+package com.mattdsouza.emi.heaps;
 
-import com.mattdsouza.emi.heaps.RootSnapshot;
-
+import com.mattdsouza.emi.MutantGenerator;
 import heapdl.hprof.*;
+import org.apache.commons.cli.*;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class HeapPrinter {
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Heap printer expects exactly two arguments: the hprof file name, and a package prefix.");
-        }
-        String hprofFile = args[0];
-        String prefix = args[1];
+        CommandLine options = parseOptions(args);
+        String hprofFile = options.getOptionValue("dump");
+        String prefix = options.getOptionValue("prefix");
 
         RootSnapshot snapshot = RootSnapshot.fromFile(hprofFile);
 
-        List<StackTrace> relevantStackTraces = snapshot.stackTraces.stream()
-                .filter((entry) -> Arrays.stream(entry.getFrames()).anyMatch(
-                        (frame) -> frame.getClassName().startsWith(prefix)
-                ))
-                .collect(Collectors.toList());
-
-        Map<StackFrame, Set<Long>> relevantRoots = relevantStackTraces.stream()
-                .flatMap((trace) -> Arrays.stream(trace.getFrames())
-                        .filter(snapshot.roots::containsKey)
-                )
-                .collect(Collectors.toMap((frame) -> frame, snapshot.roots::get));
+        List<StackTrace> relevantStackTraces = snapshot.filterStackTraces(prefix);
+        Map<StackFrame, List<Long>> relevantRoots = snapshot.filterRoots(prefix);
 
         StringBuilder buf = new StringBuilder();
         buf.append("digraph heap {\n");
@@ -65,7 +53,7 @@ public class HeapPrinter {
 
         /// Perform BFS to generate pointer graph.
         // Initialize BFS queue with roots
-        for (Map.Entry<StackFrame, Set<Long>> entry : relevantRoots.entrySet()) {
+        for (Map.Entry<StackFrame, List<Long>> entry : relevantRoots.entrySet()) {
             String name = frameName(entry.getKey());
 
             for (Long objId : entry.getValue()) {
@@ -138,5 +126,28 @@ public class HeapPrinter {
     }
     static String frameName(StackFrame frame) {
         return String.format("\"%s.%s%s\"", frame.getClassName(), frame.getMethodName(), frame.getMethodSignature());
+    }
+
+    static CommandLine parseOptions(String[] args) {
+        Options options = new Options();
+
+        Option dump = new Option("d", "dump", true, "Path to heap dump");
+        dump.setRequired(true);
+        options.addOption(dump);
+
+        Option coverage = new Option("p", "prefix", true, "Package prefix to look for");
+        coverage.setRequired(true);
+        options.addOption(coverage);
+
+        CommandLineParser parser = new DefaultParser();
+        HelpFormatter formatter = new HelpFormatter();
+        try {
+            return parser.parse(options, args);
+        } catch (ParseException e) {
+            System.out.println(e.getMessage());
+            formatter.printHelp(MutantGenerator.class.getName(), options);
+            System.exit(1);
+        }
+        return null;
     }
 }

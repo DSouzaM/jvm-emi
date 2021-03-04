@@ -5,18 +5,18 @@ import heapdl.hprof.*;
 import java.util.*;
 
 public class RootSnapshotHandler extends SnapshotHandler {
-    public Map<StackFrame, Set<Long>> roots;
+    public Map<StackFrame, List<Long>> roots;
     // Maintain this mapping so we can obtain the stack trace for a given thread serial num.
     private Map<Integer, StackTrace> threadToStackTrace;
 
-    public RootSnapshotHandler(Map<StackFrame, Set<Long>> roots, Snapshot snapshot, StackTraces stackTraces, boolean extractStringConstants) {
+    public RootSnapshotHandler(Map<StackFrame, List<Long>> roots, Snapshot snapshot, StackTraces stackTraces, boolean extractStringConstants) {
         super(snapshot, stackTraces, extractStringConstants);
         this.roots = roots;
         this.threadToStackTrace = new HashMap<>();
     }
 
     private void addRoot(StackFrame frame, long objId) {
-        roots.computeIfAbsent(frame, k -> new HashSet<>()).add(objId);
+        roots.computeIfAbsent(frame, k -> new ArrayList<>()).add(objId);
     }
 
     @Override

@@ -22,6 +22,12 @@ java_binary(
     runtime_deps = [":lib"]
 )
 
+java_binary(
+    name = "heapprinter",
+    main_class = "com.mattdsouza.emi.heaps.HeapPrinter",
+    runtime_deps = [":lib"]
+)
+
 java_library(
     name = "lib",
     srcs = glob(["src/**/*.java"]),

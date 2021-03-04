@@ -6,3 +6,5 @@ sootOutput/
 example_registry/
 **/.DS_Store
 /bazel-*
+/*.hprof
+/*.dot
