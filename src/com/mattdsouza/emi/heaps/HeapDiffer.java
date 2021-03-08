@@ -2,7 +2,6 @@ package com.mattdsouza.emi.heaps;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.mattdsouza.emi.MutantGenerator;
 import heapdl.hprof.*;
 import org.apache.commons.cli.*;
 
@@ -11,7 +10,6 @@ import java.util.*;
 public class HeapDiffer {
     RootSnapshot firstSnapshot;
     RootSnapshot secondSnapshot;
-    String prefix;
     boolean computeFullDiff;
     List<String> errors;
 
@@ -27,30 +25,23 @@ public class HeapDiffer {
         }
     }
 
-    private HeapDiffer(String firstPath, String secondPath, String prefix, boolean computeFullDiff) throws Exception {
+    private HeapDiffer(String firstPath, String secondPath, boolean computeFullDiff) throws Exception {
         firstSnapshot = RootSnapshot.fromFile(firstPath);
         secondSnapshot = RootSnapshot.fromFile(secondPath);
-        this.prefix = prefix;
         this.computeFullDiff = computeFullDiff;
         this.errors = new ArrayList<>();
-        firstRoots = firstSnapshot.filterRoots(prefix);
-        secondRoots = secondSnapshot.filterRoots(prefix);
+        firstRoots = firstSnapshot.filterRoots(firstSnapshot.getMainStackTrace());
+        secondRoots = secondSnapshot.filterRoots(secondSnapshot.getMainStackTrace());
         identity = HashBiMap.create();
     }
 
     private boolean computeDiff() {
-        List<StackTrace> firstStackTraces = firstSnapshot.filterStackTraces(prefix);
-        List<StackTrace> secondStackTraces = secondSnapshot.filterStackTraces(prefix);
+        StackTrace firstStackTrace = firstSnapshot.getMainStackTrace();
+        StackTrace secondStackTrace = secondSnapshot.getMainStackTrace();
 
         try {
-            if (firstStackTraces.size() != 1 || secondStackTraces.size() != 1) {
-                return error("Currently, only diffing single stack traces is supported. " +
-                        "Found %d traces in the first dump and %d in the second.",
-                        firstStackTraces.size(), secondStackTraces.size());
-            }
-
-            StackFrame[] firstFrames = firstStackTraces.get(0).getFrames();
-            StackFrame[] secondFrames = secondStackTraces.get(0).getFrames();
+            StackFrame[] firstFrames = firstStackTrace.getFrames();
+            StackFrame[] secondFrames = secondStackTrace.getFrames();
             if (firstFrames.length != secondFrames.length) {
                 return error("Traces incomparable: first has %d frames, second has %d.",
                         firstFrames.length, secondFrames.length);
@@ -185,10 +176,9 @@ public class HeapDiffer {
         CommandLine options = parseOptions(args);
         String firstPath = options.getOptionValue("first");
         String secondPath = options.getOptionValue("second");
-        String prefix = options.getOptionValue("prefix");
         boolean computeFullDiff = options.hasOption("full");
 
-        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, prefix, computeFullDiff);
+        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, computeFullDiff);
         boolean success = differ.computeDiff();
         if (success) {
             System.out.println("No differences detected.");
@@ -209,12 +199,12 @@ public class HeapDiffer {
     }
 
     public static boolean diff(String firstPath, String secondPath, String prefix) throws Exception {
-        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, prefix, false);
+        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, false);
         return differ.computeDiff();
     }
 
     public static List<String> fullDiff(String firstPath, String secondPath, String prefix) throws Exception {
-        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, prefix, true);
+        HeapDiffer differ = new HeapDiffer(firstPath, secondPath, true);
         differ.computeDiff();
         return differ.errors;
     }
@@ -246,10 +236,6 @@ public class HeapDiffer {
         second.setRequired(true);
         options.addOption(second);
 
-        Option coverage = new Option("p", "prefix", true, "Package prefix to look for");
-        coverage.setRequired(true);
-        options.addOption(coverage);
-
         Option computeFullDiff = new Option("full", false, "Whether to generate a full report (or abort on first failure)");
         computeFullDiff.setRequired(false);
         options.addOption(computeFullDiff);
@@ -260,7 +246,7 @@ public class HeapDiffer {
             return parser.parse(options, args);
         } catch (ParseException e) {
             System.out.println(e.getMessage());
-            formatter.printHelp(MutantGenerator.class.getName(), options);
+            formatter.printHelp(HeapDiffer.class.getName(), options);
             System.exit(1);
         }
         return null;

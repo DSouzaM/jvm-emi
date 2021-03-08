@@ -1,6 +1,5 @@
 package com.mattdsouza.emi.heaps;
 
-import com.mattdsouza.emi.MutantGenerator;
 import heapdl.hprof.*;
 import org.apache.commons.cli.*;
 
@@ -15,38 +14,36 @@ public class HeapPrinter {
 
         RootSnapshot snapshot = RootSnapshot.fromFile(hprofFile);
 
-        List<StackTrace> relevantStackTraces = snapshot.filterStackTraces(prefix);
-        Map<StackFrame, List<Long>> relevantRoots = snapshot.filterRoots(prefix);
+        LinkedHashMap<StackFrame, List<Long>> relevantRoots = snapshot.filterRoots(snapshot.getMainStackTrace());
 
         StringBuilder buf = new StringBuilder();
         buf.append("digraph heap {\n");
 
         /// Generate nodes and edges for stack frames.
-        for (StackTrace trace : relevantStackTraces) {
-            String prev = null;
-            StringBuilder sameRankBuf = new StringBuilder();
-            sameRankBuf.append("{rank = same; ");
+        String prev = null;
+        StringBuilder sameRankBuf = new StringBuilder();
+        sameRankBuf.append("{rank = same; ");
 
-            for (StackFrame frame : trace.getFrames()) {
-                String name = frameName(frame);
+        for (StackFrame frame : relevantRoots.keySet()) {
+            String name = frameName(frame);
+            buf.append(name);
+            buf.append(" [shape=box];\n");
+            if (prev != null) {
+                buf.append(prev);
+                buf.append(" -> ");
                 buf.append(name);
-                buf.append(" [shape=box];\n");
-                if (prev != null) {
-                    buf.append(prev);
-                    buf.append(" -> ");
-                    buf.append(name);
-                    buf.append(";\n");
-                }
-
-                sameRankBuf.append(name);
-                sameRankBuf.append(";");
-
-                prev = name;
+                buf.append(";\n");
             }
-            sameRankBuf.append("}\n");
-            sameRankBuf.append("rankdir = LR;\n");
-            buf.append(sameRankBuf.toString());
+
+            sameRankBuf.append(name);
+            sameRankBuf.append(";");
+
+            prev = name;
         }
+        sameRankBuf.append("}\n");
+        sameRankBuf.append("rankdir = LR;\n");
+        buf.append(sameRankBuf.toString());
+
 
         Set<Long> seen = new HashSet<>();
         Queue<Long> toVisit = new ArrayDeque<>();
@@ -98,9 +95,9 @@ public class HeapPrinter {
                         buf.append(objId);
                         buf.append(" -> ");
                         buf.append(fieldObjId);
-                        buf.append(" [label = ");
+                        buf.append(" [label = \"");
                         buf.append(field.getName());
-                        buf.append("];\n");
+                        buf.append("\"];\n");
                     }
                 }
             } else if (thing instanceof JavaObjectArray) {
@@ -145,7 +142,7 @@ public class HeapPrinter {
             return parser.parse(options, args);
         } catch (ParseException e) {
             System.out.println(e.getMessage());
-            formatter.printHelp(MutantGenerator.class.getName(), options);
+            formatter.printHelp(HeapPrinter.class.getName(), options);
             System.exit(1);
         }
         return null;

@@ -2,9 +2,7 @@ package com.mattdsouza.emi;
 
 import org.apache.commons.cli.*;
 
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -135,7 +133,7 @@ public class MutantRunner {
             return parser.parse(options, args);
         } catch (ParseException e) {
             System.out.println(e.getMessage());
-            formatter.printHelp(OutputChecker.class.getName(), options);
+            formatter.printHelp(MutantRunner.class.getName(), options);
             System.exit(1);
         }
         return null;
