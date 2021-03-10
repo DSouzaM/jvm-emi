@@ -15,7 +15,7 @@ import java.util.*;
 public class HeapDumpInstrumentor {
     public static void main(String[] args) {
         CommandLine options = parseOptions(args);
-        String directory = options.getOptionValue("dir");
+        String classPath = options.getOptionValue("classpath");
         String clazz = options.getOptionValue("class");
         String method = options.getOptionValue("method");
         int offset = Integer.parseInt(options.getOptionValue("offset"));
@@ -26,14 +26,14 @@ public class HeapDumpInstrumentor {
             System.exit(1);
         }
 
-        System.out.printf("Adding heap dump instruction to %s.%s:%d inside %s.\n", clazz, method, offset, directory);
+        System.out.printf("Adding heap dump instruction to %s.%s:%d.\n", clazz, method, offset);
 
         List<String> sootOptions = new ArrayList<>();
         // Add classes to Soot classpath (including current classpath, so that we can resolve HeapDumper
         sootOptions.add("-cp");
         // TODO: Using the current classpath is a hack, since HeapDumper will be reachable in this program.
         //  We should really use dumpLibrary, but Bazel passes a non-portable relative path.
-        sootOptions.add(String.format("%s:%s", directory, System.getProperty("java.class.path")));
+        sootOptions.add(String.format("%s:%s", classPath, System.getProperty("java.class.path")));
         // Prepend Soot classpath to default classpath
         sootOptions.add("-pp");
         // Direct Soot to remember bytecode offsets
@@ -41,8 +41,6 @@ public class HeapDumpInstrumentor {
         // Output transformed results as classfiles
         sootOptions.add("-f");
         sootOptions.add("c");
-
-//        sootOptions.add("-w");
 
         // Direct Soot to transform just the given class
         sootOptions.add(clazz);
@@ -59,9 +57,9 @@ public class HeapDumpInstrumentor {
     static CommandLine parseOptions(String[] args) {
         Options options = new Options();
 
-        Option directory = new Option("d", "dir", true, "Directory containing classes");
-        directory.setRequired(true);
-        options.addOption(directory);
+        Option classPath = new Option("cp", "classpath", true, "Classpath containing relevant classes");
+        classPath.setRequired(true);
+        options.addOption(classPath);
 
         Option clazz = new Option("c", "class", true, "Class to instrument");
         clazz.setRequired(true);
@@ -92,6 +90,7 @@ class HeapDumpTransformer extends BodyTransformer {
     String method;
     int offset;
 
+
     HeapDumpTransformer(String method, int offset) {
         this.method = method;
         this.offset = offset;
@@ -105,6 +104,17 @@ class HeapDumpTransformer extends BodyTransformer {
             return;
         }
 
+        long numMatchingMethods = b.getMethod().getDeclaringClass().getMethods().stream()
+                .filter((meth) -> meth.getName().equals(this.method))
+                .count();
+        if (numMatchingMethods > 1) {
+            throw new RuntimeException(String.format(
+                    "Found %d overloads of method %s. Instrumentation currently does not differentiate overloads.",
+                    numMatchingMethods, this.method
+            ));
+        }
+
+
         UnitPatchingChain units = b.getUnits();
         Iterator<Unit> unitIt = units.snapshotIterator();
         while (unitIt.hasNext()) {
@@ -117,9 +127,26 @@ class HeapDumpTransformer extends BodyTransformer {
 
             int offset = ((BytecodeOffsetTag) offsetTag).getBytecodeOffset();
 
-            if (offset != this.offset) {
+            if (offset < this.offset) {
                 continue;
+            } else if (offset > this.offset) {
+                // A shortcoming of Jimple is that not every bytecode instruction maps to a Jimple instruction.
+                // Sometimes multiple bytecode instructions are combined into one Jimple instruction.
+                // We could use ASM directly to get the exact instruction we want, but this is good enough for a one-off
+                // invokestatic insertion.
+                System.err.println("Failed to insert heap dump. No Soot instruction corresponding to offset " + this.offset + ".");
+                Scanner scan = new Scanner(System.in);
+                String answer;
+                do {
+                    System.err.printf("Is " + offset + " a suitable alternative? (y/n) ");
+                    answer = scan.next();
+                } while (!answer.equals("y") && !answer.equals("n"));
+
+                if (answer.equals("n")) {
+                    throw new RuntimeException("Failed to insert heap dump at the given offset.");
+                }
             }
+
 
             System.out.println("Found instruction at specified offset: " + unit.toString() +
                     ". Inserting heap dump immediately before it.");
@@ -131,7 +158,5 @@ class HeapDumpTransformer extends BodyTransformer {
             units.insertBefore(dumpStmt, unit);
             return;
         }
-
-        throw new RuntimeException("Failed to insert heap dump. Instruction at offset " + offset + " was not found.");
     }
 }

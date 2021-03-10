@@ -10,7 +10,6 @@ public class HeapPrinter {
     public static void main(String[] args) throws IOException {
         CommandLine options = parseOptions(args);
         String hprofFile = options.getOptionValue("dump");
-        String prefix = options.getOptionValue("prefix");
 
         RootSnapshot snapshot = RootSnapshot.fromFile(hprofFile);
 
@@ -131,10 +130,6 @@ public class HeapPrinter {
         Option dump = new Option("d", "dump", true, "Path to heap dump");
         dump.setRequired(true);
         options.addOption(dump);
-
-        Option coverage = new Option("p", "prefix", true, "Package prefix to look for");
-        coverage.setRequired(true);
-        options.addOption(coverage);
 
         CommandLineParser parser = new DefaultParser();
         HelpFormatter formatter = new HelpFormatter();

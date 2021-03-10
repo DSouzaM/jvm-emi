@@ -19,7 +19,6 @@ public class HeapDumper {
             ManagementFactory.newPlatformMXBeanProxy(
                     ManagementFactory.getPlatformMBeanServer(), "com.sun.management:type=HotSpotDiagnostic", HotSpotDiagnosticMXBean.class
             ).dumpHeap(dumpFile, true);
-            System.err.println("Dumped heap successfully.");
         } catch (Exception ex) {
             System.err.println("Failed to dump heap. Message: " + ex.getMessage());
         }

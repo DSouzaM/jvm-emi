@@ -29,6 +29,12 @@ java_binary(
 )
 
 java_binary(
+    name = "heapdiffer",
+    main_class = "com.mattdsouza.emi.heaps.HeapDiffer",
+    runtime_deps = [":emi-lib"]
+)
+
+java_binary(
     name = "heapdumpinstrumentor",
     main_class = "com.mattdsouza.emi.heaps.HeapDumpInstrumentor",
     srcs = [
