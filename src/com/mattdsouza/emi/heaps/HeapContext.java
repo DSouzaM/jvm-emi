@@ -44,20 +44,22 @@ public class HeapContext {
         sb.append("[");
         sb.append(frameName(base));
         sb.append(" -> ");
-
-        Cons<Edge> currentPath = path;
-        while (currentPath != null) {
-            Edge edge = currentPath.value;
-            sb.append(edge.value.getClassName());
-            sb.append("@");
-            sb.append(edge.value.getId());
-            sb.append(" -");
-            sb.append(edge.pathName);
-            sb.append("-> ");
-            currentPath = currentPath.next;
-        }
+        printPath(path, sb);
         sb.append("]");
+
         return sb.toString();
+    }
+
+    private void printPath(Cons<Edge> path, StringBuilder sb) {
+        if (path == null) return;
+        printPath(path.next, sb);
+        Edge edge = path.value;
+        sb.append(edge.value.getClassName());
+        sb.append("@");
+        sb.append(edge.value.getId());
+        sb.append(" -");
+        sb.append(edge.pathName);
+        sb.append("-> ");
     }
 
     static HeapContext empty(StackFrame base) {

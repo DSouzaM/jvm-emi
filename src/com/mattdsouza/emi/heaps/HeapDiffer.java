@@ -126,6 +126,8 @@ public class HeapDiffer {
             error("Path between dumps point to differently-typed objects: %s points to a $s, %s points to a %s",
                     firstContext, firstThing.getClassName(), secondContext, secondThing.getClassName());
             return;
+        } else if (shouldIgnore(firstThing.getClassName())) {
+            return;
         }
 
         // To handle pointer loops, assume these objects are equivalent until proven otherwise.
@@ -144,18 +146,20 @@ public class HeapDiffer {
                     JavaField secondField = secondFields.get(i);
                     assert firstField.getName().equals(secondField.getName());
 
+                    HeapContext newFirstContext = firstContext.push(firstObject, firstField.getName());
+                    HeapContext newSecondContext = secondContext.push(secondObject, secondField.getName());
                     if (firstField.getType().equals("Object")) {
                         diffObject(
                                 Long.parseLong(firstField.getValue()),
                                 Long.parseLong(secondField.getValue()),
-                                firstContext.push(firstObject, firstField.getName()),
-                                secondContext.push(secondObject, secondField.getName())
+                                newFirstContext,
+                                newSecondContext
                         );
                     } else {
                         // todo: compare primitives in a better way than string value comparison
                         if (!firstField.getValue().equals(secondField.getValue())) {
                             error("Field value %s differs between objects on paths %s and %s: first dump has %s, second has %s",
-                                    firstField.getName(), firstContext, secondContext,
+                                    firstField.getName(), newFirstContext, newSecondContext,
                                     firstField.getValue(), secondField.getValue());
                         }
                     }
@@ -186,6 +190,10 @@ public class HeapDiffer {
         List<JavaField> copy = new ArrayList<>(lst);
         copy.sort(Comparator.comparing(JavaField::getName));
         return copy;
+    }
+
+    private boolean shouldIgnore(String className) {
+        return className.contains("HashMap") || className.contains("ClassLoader") || className.startsWith("java.lang.ref") || className.startsWith("sun");
     }
 
     public static void main(String[] args) throws Exception {

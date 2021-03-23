@@ -1,4 +1,5 @@
 .idea/
+.ijwb/
 out/
 sootOutput/
 *.iml
@@ -8,3 +9,4 @@ example_registry/
 /bazel-*
 /*.hprof
 /*.dot
+dacapo/*.jar
