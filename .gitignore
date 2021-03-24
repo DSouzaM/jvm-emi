@@ -5,6 +5,7 @@ sootOutput/
 *.iml
 *.class
 example_registry/
+pmd_registry/
 **/.DS_Store
 /bazel-*
 /*.hprof

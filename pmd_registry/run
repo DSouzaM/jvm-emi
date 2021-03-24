@@ -1,0 +1,45 @@
+#!/usr/bin/python3
+import argparse
+import os
+import subprocess
+
+
+def execute(command):
+    subprocess.run(command)
+
+
+def main():
+    args = parse_args()
+
+    if args.profile:
+        execute(["java",
+            "-cp", f"support/patched-dacapo.jar:{args.dump_lib}",
+            f"-javaagent:{args.jacoco}=destfile={args.output}",
+            f"-Dmutated_path={args.mutant}",
+            "Harness", "pmd"
+        ])
+    else:
+        execute(["java",
+            "-cp", f"support/patched-dacapo.jar:{args.dump_lib}",
+            f"-Dmutated_path={args.mutant}",
+            f"-Ddump_file={args.output}",
+            "Harness", "pmd"
+        ])
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="PMD driver")
+    parser.add_argument("mutant", help="name of mutant")
+    parser.add_argument("-d", "--dump-lib", required=True, help="path to heap dump lib")
+    parser.add_argument("-o", "--output", required=True, help="output path (for program dump or profiling dump)")
+    parser.add_argument("-p", "--profile", action="store_true", help="whether to do a profiling run")
+    parser.add_argument("-j", "--jacoco", help="path to JaCoCo jar (if profiling)")
+    args = parser.parse_args()
+
+    if args.profile:
+        assert args.jacoco, "JaCoCo jar should be provided for profiling runs"
+
+    return args
+
+
+if __name__ == "__main__":
+    main()

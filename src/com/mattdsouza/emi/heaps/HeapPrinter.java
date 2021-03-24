@@ -13,7 +13,7 @@ public class HeapPrinter {
 
         RootSnapshot snapshot = RootSnapshot.fromFile(hprofFile);
 
-        LinkedHashMap<StackFrame, List<Long>> relevantRoots = snapshot.filterRoots(snapshot.getMainStackTrace());
+        LinkedHashMap<StackFrame, List<Long>> relevantRoots = snapshot.filterRoots(snapshot.getMainStackFrames());
 
         StringBuilder buf = new StringBuilder();
         buf.append("digraph heap {\n");

@@ -6,7 +6,9 @@ import soot.*;
 
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 // Entrypoint to generate a new EMI variant from an existing variant.
 public class MutantGenerator {
@@ -22,12 +24,17 @@ public class MutantGenerator {
     public static void generateMutant(String registryPath, String variant, String newVariant, String coverageFile) throws Exception {
         MutantRegistry registry = new MutantRegistry(registryPath);
         String variantPath = registry.getMutant(variant).toString();
+
+        String classPath = registry.getSupportingJars().stream()
+                .map(Path::toString)
+                .collect(Collectors.joining(":")) + ":" + variantPath;
+        System.out.println("Classpath is " + classPath);
         String outputPath = registry.createMutant(newVariant).toString();
 
         List<String> sootOptions = new ArrayList<>();
         // Add classes to Soot classpath
         sootOptions.add("-cp");
-        sootOptions.add(variantPath);
+        sootOptions.add(classPath);
         // Direct Soot to transform classes in directory
         sootOptions.add("-process-dir");
         sootOptions.add(variantPath);
@@ -41,6 +48,8 @@ public class MutantGenerator {
         // Indicate output location for classfiles
         sootOptions.add("-d");
         sootOptions.add(outputPath);
+        // Direct Soot to validate the output
+//        sootOptions.add("-validate");
 
         // Parse coverage and add our transformer to the Soot pipeline
         BytecodeCoverage coverage = null;

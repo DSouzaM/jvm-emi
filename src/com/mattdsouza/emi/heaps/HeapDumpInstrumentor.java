@@ -44,7 +44,8 @@ public class HeapDumpInstrumentor {
 
         // Direct Soot to transform just the given class
         sootOptions.add(clazz);
-        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", new HeapDumpTransformer(method, offset)));
+        HeapDumpTransformer transformer = new HeapDumpTransformer(method, offset);
+        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", transformer));
 
         // Pre-load HeapDumper class so it's accessible in the transformer.
         Scene.v().addBasicClass("com.mattdsouza.emi.heaps.HeapDumper", SootClass.SIGNATURES);
@@ -52,6 +53,10 @@ public class HeapDumpInstrumentor {
         // Run Soot
         String[] sootArgs = new String[sootOptions.size()];
         soot.Main.main(sootOptions.toArray(sootArgs));
+
+        if (!transformer.success) {
+            System.err.printf("Instrumentation failed. Did not encounter a method \"%s\".\n", method);
+        }
     }
 
     static CommandLine parseOptions(String[] args) {
@@ -65,7 +70,8 @@ public class HeapDumpInstrumentor {
         clazz.setRequired(true);
         options.addOption(clazz);
 
-        Option method = new Option("m", "method", true, "Method to instrument");
+        Option method = new Option("m", "method", true,
+                "Method to instrument, specified as a method name (e.g. \"foo\") or signature (e.g. \"void foo(int,java.lang.Object)\")");
         method.setRequired(true);
         options.addOption(method);
 
@@ -89,31 +95,29 @@ public class HeapDumpInstrumentor {
 class HeapDumpTransformer extends BodyTransformer {
     String method;
     int offset;
-
+    boolean success;
 
     HeapDumpTransformer(String method, int offset) {
         this.method = method;
         this.offset = offset;
+        this.success = false;
     }
 
     @Override
     protected void internalTransform(Body b, String phaseName, Map<String, String> options) {
-        String method = b.getMethod().getName();
-
-        if (!method.equals(this.method)) {
+        if (!b.getMethod().getSubSignature().contains(this.method)) {
             return;
         }
 
         long numMatchingMethods = b.getMethod().getDeclaringClass().getMethods().stream()
-                .filter((meth) -> meth.getName().equals(this.method))
+                .filter((meth) -> meth.getSubSignature().contains(this.method))
                 .count();
         if (numMatchingMethods > 1) {
             throw new RuntimeException(String.format(
-                    "Found %d overloads of method %s. Instrumentation currently does not differentiate overloads.",
+                    "Found %d overloads containing method string \"%s\". Try providing a more specific method string.",
                     numMatchingMethods, this.method
             ));
         }
-
 
         UnitPatchingChain units = b.getUnits();
         Iterator<Unit> unitIt = units.snapshotIterator();
@@ -134,11 +138,11 @@ class HeapDumpTransformer extends BodyTransformer {
                 // Sometimes multiple bytecode instructions are combined into one Jimple instruction.
                 // We could use ASM directly to get the exact instruction we want, but this is good enough for a one-off
                 // invokestatic insertion.
-                System.err.println("Failed to insert heap dump. No Soot instruction corresponding to offset " + this.offset + ".");
+                System.err.printf("Failed to insert heap dump. No Soot instruction corresponding to offset %d.\n", this.offset);
                 Scanner scan = new Scanner(System.in);
                 String answer;
                 do {
-                    System.err.printf("Is " + offset + " a suitable alternative? (y/n) ");
+                    System.err.printf("Is %d a suitable alternative? (y/n) ", offset);
                     answer = scan.next();
                 } while (!answer.equals("y") && !answer.equals("n"));
 
@@ -156,6 +160,7 @@ class HeapDumpTransformer extends BodyTransformer {
             Expr dumpCall = Jimple.v().newStaticInvokeExpr(dumpMethod.makeRef());
             Stmt dumpStmt = Jimple.v().newInvokeStmt(dumpCall);
             units.insertBefore(dumpStmt, unit);
+            this.success = true;
             return;
         }
     }

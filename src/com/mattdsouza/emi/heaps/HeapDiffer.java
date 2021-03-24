@@ -13,6 +13,8 @@ public class HeapDiffer {
     boolean computeFullDiff;
     List<String> errors;
 
+    List<StackFrame> firstFrames;
+    List<StackFrame> secondFrames;
     Map<StackFrame, List<Long>> firstRoots;
     Map<StackFrame, List<Long>> secondRoots;
 
@@ -30,26 +32,24 @@ public class HeapDiffer {
         secondSnapshot = RootSnapshot.fromFile(secondPath);
         this.computeFullDiff = computeFullDiff;
         this.errors = new ArrayList<>();
-        firstRoots = firstSnapshot.filterRoots(firstSnapshot.getMainStackTrace());
-        secondRoots = secondSnapshot.filterRoots(secondSnapshot.getMainStackTrace());
+
+        firstFrames = firstSnapshot.getMainStackFrames();
+        secondFrames = secondSnapshot.getMainStackFrames();
+        firstRoots = firstSnapshot.filterRoots(firstFrames);
+        secondRoots = secondSnapshot.filterRoots(secondFrames);
         identity = HashBiMap.create();
     }
 
     private void computeDiff() {
-        StackTrace firstStackTrace = firstSnapshot.getMainStackTrace();
-        StackTrace secondStackTrace = secondSnapshot.getMainStackTrace();
-
         try {
-            StackFrame[] firstFrames = firstStackTrace.getFrames();
-            StackFrame[] secondFrames = secondStackTrace.getFrames();
-            if (firstFrames.length != secondFrames.length) {
+            if (firstFrames.size() != secondFrames.size()) {
                 error("Traces incomparable: first has %d frames, second has %d.",
-                        firstFrames.length, secondFrames.length);
+                        firstFrames.size(), secondFrames.size());
                 return;
             }
-            for (int i = 0; i < firstFrames.length; i++) {
-                StackFrame firstFrame = firstFrames[i];
-                StackFrame secondFrame = secondFrames[i];
+            for (int i = 0; i < firstFrames.size(); i++) {
+                StackFrame firstFrame = firstFrames.get(i);
+                StackFrame secondFrame = secondFrames.get(i);
                 String firstFrameName = frameName(firstFrame);
                 String secondFrameName = frameName(secondFrame);
                 if (!firstFrameName.equals(secondFrameName)) {
@@ -59,8 +59,8 @@ public class HeapDiffer {
                 }
             }
 
-            for (int i = 0; i < firstFrames.length; i++) {
-                diffFrame(i, firstFrames[i], secondFrames[i]);
+            for (int i = 0; i < firstFrames.size(); i++) {
+                diffFrame(i, firstFrames.get(i), secondFrames.get(i));
             }
         } catch (HeapDifferException ex) {}  // Abort main diff loop on exception
     }
@@ -193,7 +193,12 @@ public class HeapDiffer {
     }
 
     private boolean shouldIgnore(String className) {
-        return className.contains("HashMap") || className.contains("ClassLoader") || className.startsWith("java.lang.ref") || className.startsWith("sun");
+        List<String> classNames = Arrays.asList(
+            "HashMap", "ClassLoader", "ThreadPoolExecutor", "java.io.FileDescriptor", "java.lang.Thread",
+            "PmdThread" // pmd
+        );
+        List<String> packagePrefixes = Arrays.asList("java.lang.ref", "sun");
+        return classNames.stream().anyMatch(className::contains) || packagePrefixes.stream().anyMatch(className::startsWith);
     }
 
     public static void main(String[] args) throws Exception {

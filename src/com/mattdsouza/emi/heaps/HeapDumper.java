@@ -12,16 +12,13 @@ public class HeapDumper {
         if (dumped) return;
         String dumpFile = System.getProperty(DUMP_FILE_PROP);
         if (dumpFile == null) {
-            System.err.println("No dump file specified. Use -Ddump_file to indicate a heap dump file.");
             return;
         }
         try {
             ManagementFactory.newPlatformMXBeanProxy(
                     ManagementFactory.getPlatformMBeanServer(), "com.sun.management:type=HotSpotDiagnostic", HotSpotDiagnosticMXBean.class
             ).dumpHeap(dumpFile, true);
-        } catch (Exception ex) {
-            System.err.println("Failed to dump heap. Message: " + ex.getMessage());
-        }
+        } catch (Exception ex) {}
         dumped = true;
     }
 }

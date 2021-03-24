@@ -1,18 +1,11 @@
+py_binary(
+    name = "run_emi",
+    srcs = ["run_emi.py"],
+)
+
 java_binary(
     name = "mutator",
     main_class = "com.mattdsouza.emi.MutantGenerator",
-    runtime_deps = [":emi-lib"]
-)
-
-java_binary(
-    name = "runner",
-    main_class = "com.mattdsouza.emi.MutantRunner",
-    runtime_deps = [":emi-lib"]
-)
-
-java_binary(
-    name = "outputchecker",
-    main_class = "com.mattdsouza.emi.OutputChecker",
     runtime_deps = [":emi-lib"]
 )
 

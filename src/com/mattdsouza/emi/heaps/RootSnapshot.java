@@ -7,7 +7,6 @@ import heapdl.hprof.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class RootSnapshot {
     private static final String DUMP_CLASS = "com.mattdsouza.emi.heaps.HeapDumper";
@@ -35,7 +34,22 @@ public class RootSnapshot {
         return new RootSnapshot(roots, snapshot, rootHandler.getAllStackTraces());
     }
 
-    public StackTrace getMainStackTrace() {
+    public List<StackFrame> getMainStackFrames() {
+        StackTrace trace = findMainStackTrace();
+        List<StackFrame> result = new ArrayList<>();
+        boolean foundDumpMethod = false;
+        for (StackFrame frame : trace.getFrames()) {
+            // Include all frames after the dump call.
+            if (foundDumpMethod) {
+                result.add(frame);
+            } else if (frame.getClassName().equals(DUMP_CLASS) && frame.getMethodName().equals(DUMP_METHOD)) {
+                foundDumpMethod = true;
+            }
+        }
+        return result;
+    }
+
+    private StackTrace findMainStackTrace() {
         for (StackTrace trace : stackTraces) {
             if (Arrays.stream(trace.getFrames()).anyMatch(
                     (frame) -> frame.getClassName().equals(DUMP_CLASS) && frame.getMethodName().equals(DUMP_METHOD)
@@ -46,19 +60,12 @@ public class RootSnapshot {
         throw new RuntimeException("Could not find a main stack trace in the heap snapshot.");
     }
 
-    public LinkedHashMap<StackFrame, List<Long>> filterRoots(StackTrace trace) {
+    public LinkedHashMap<StackFrame, List<Long>> filterRoots(List<StackFrame> frames) {
         LinkedHashMap<StackFrame, List<Long>> result = new LinkedHashMap<>();
-        boolean foundDumpMethod = false;
-        for (StackFrame frame : trace.getFrames()) {
-            // Include all frames after the dump call, as long as they exist in the roots mapping.
-            if (foundDumpMethod) {
-                if (roots.containsKey(frame)) {
-                    result.put(frame, roots.get(frame));
-                }
-            } else {
-                if (frame.getClassName().equals(DUMP_CLASS) && frame.getMethodName().equals(DUMP_METHOD)) {
-                    foundDumpMethod = true;
-                }
+        for (StackFrame frame : frames) {
+            // Include any frame which has a root mapping
+            if (roots.containsKey(frame)) {
+                result.put(frame, roots.get(frame));
             }
         }
         return result;

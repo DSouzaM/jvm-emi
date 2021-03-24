@@ -28,38 +28,24 @@ public class MutantRegistry {
     private final Path root;
     private final Path mutants;
     private final Path seed;
-    private List<Path> inputs;
-    private final Map<String, Path> expectedOutputs;
+    private final Path support;
 
 
     public MutantRegistry(String root) throws MutantRegistryException, IOException {
         this.root = checkDirectory(Paths.get(root));
         this.mutants = checkDirectory(this.root.resolve("mutants"));
         this.seed = checkDirectory(this.root.resolve("seed"));
-        this.inputs = Collections.unmodifiableList(
-                Files.list(checkDirectory(this.seed.resolve("inputs"))).collect(Collectors.toList()));
-        Path outputDirectory = checkDirectory(this.seed.resolve("outputs"));
-
-        // Validate that each input has an output
-        Map<String, Path> expectedOutputs = new HashMap<>();
-        for (Path input : inputs) {
-            Path output = checkFile(outputDirectory.resolve(input.getFileName()));
-            expectedOutputs.put(input.getFileName().toString(), output);
-        }
-        this.expectedOutputs = Collections.unmodifiableMap(expectedOutputs);
-
+        this.support = checkDirectory(this.root.resolve("support"));
     }
 
     public Path getSeed() {
         return seed;
     }
 
-    public List<Path> getInputs() {
-        return inputs;
-    }
-
-    public Map<String, Path> getExpectedOutputs() {
-        return expectedOutputs;
+    public List<Path> getSupportingJars() throws IOException, MutantRegistryException{
+        return Files.list(checkDirectory(support.resolve("jar")))
+                .filter((path) -> path.toString().endsWith(".jar"))
+                .collect(Collectors.toList());
     }
 
     public Path getMutant(String mutant) throws MutantRegistryException {
@@ -72,26 +58,6 @@ public class MutantRegistry {
             throw new MutantRegistryException("Path " + newPath.toString() + " already exists.");
         }
         return newPath;
-    }
-
-    public Path getMutantOutputPath(String mutant) throws MutantRegistryException, IOException {
-        Path result = getMutant(mutant).resolve("outputs");
-        Files.createDirectories(result);
-        return checkDirectory(result);
-    }
-
-    public Path getMutantProfilePath(String mutant) throws MutantRegistryException {
-        return getMutant(mutant).resolve("jacoco.xml");
-    }
-
-    public Map<String, Path> getMutantOutputs(String mutant) throws MutantRegistryException, IOException {
-        Map<String, Path> result = new HashMap<>();
-        Path outputDirectory = getMutantOutputPath(mutant);
-        for (String input : expectedOutputs.keySet()) {
-            Path output = checkFile(outputDirectory.resolve(input));
-            result.put(input, output);
-        }
-        return result;
     }
 
     private static Path checkFile(Path p) throws MutantRegistryException {
@@ -107,6 +73,4 @@ public class MutantRegistry {
         }
         return p;
     }
-
-
 }

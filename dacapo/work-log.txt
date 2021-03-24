@@ -1,0 +1,17 @@
+March 23
+- batik is broken because of classes no longer available in the runtime (https://www.stichlberger.com/software/workaround-for-batiks-noclassdeffounderrorclassnotfoundexception-truncatedfileexception/). while it runs on my linux machine using an Oracle JDK, it doesn't run on my Mac.
+- pmd works, but fails on soot because of a missing Ant class. downloading ant 1.6.0 and copying the jar into the support jars folder fixed it.
+
+March 24
+- producing good mutations is hard.
+- deletion is causing problems.
+    - if (always_true) { thens } else { elses }.
+      Else branch completely removed, including return op, which fails at classfile validation. "fixed" by just not deleting returns/throws.
+      probably need to be smarter and look at control flow graph ("UnitBoxes" in Soot)
+    - try { doesnt_throw() } catch (ex) { ... }.
+      catch code gets removed. even after retaining any returns/throws, ASM fails when computing the stack map frame (indexing error). maybe something needs to be updated when certain instructions get removed?
+
+- allocating dummy objects requires a destination variable (in Jimple representation).
+    - creating a new variable changes the root set
+    - knowing when an existing local won't be overwritten is non-trivial
+    - tried to modify variable at function start, but no clear way to know whether it's a parameter
