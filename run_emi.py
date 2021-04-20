@@ -2,10 +2,11 @@ import argparse
 import os
 import secrets
 import subprocess
+import sys
 
 
 def execute(command, cwd=None):
-    subprocess.check_output(command, cwd=cwd)
+    subprocess.check_call(command, stdout=sys.stdout, cwd=cwd)
 
 
 def make_dir(*parts):
@@ -52,14 +53,15 @@ def run_emi(registry: str, seed: str):
         log(f"Running {current}. Dumping heap to {heap_dump_file}.")
         execute([run_script, current_path, "--dump-lib", heap_dump_lib, "--output", heap_dump_file])
 
+        # Currently disabled, since heap dumps are more of a nuisance than a benefit right now
         # 2. Compare outputs
-        if current != "seed":
-            log(f"Comparing heap dump of {current} with baseline.")
-            baseline_heap_dump_file = os.path.join(dumps, "seed.hprof")
-            execute(
-                ["bazel", "run", ":heapdiffer", "--", "--first", baseline_heap_dump_file, "--second", heap_dump_file],
-                cwd=project_root
-            )
+        # if current != "seed":
+        #     log(f"Comparing heap dump of {current} with baseline.")
+        #     baseline_heap_dump_file = os.path.join(dumps, "seed.hprof")
+        #     execute(
+        #         ["bazel", "run", ":heapdiffer", "--", "--first", baseline_heap_dump_file, "--second", heap_dump_file],
+        #         cwd=project_root
+        #     )
 
         # 3. Profile mutant
         log(f"Re-running {current} to obtain coverage.")

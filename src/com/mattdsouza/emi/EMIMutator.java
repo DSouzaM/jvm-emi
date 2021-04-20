@@ -1,12 +1,8 @@
 package com.mattdsouza.emi;
 
 import soot.*;
-import soot.jimple.Expr;
-import soot.jimple.Jimple;
-import soot.jimple.NullConstant;
-import soot.jimple.internal.AbstractOpStmt;
-import soot.jimple.internal.JIdentityStmt;
-import soot.jimple.internal.JimpleLocal;
+import soot.jimple.*;
+import soot.jimple.internal.*;
 import soot.tagkit.BytecodeOffsetTag;
 import soot.tagkit.Tag;
 
@@ -19,8 +15,9 @@ class EMIMutator extends BodyTransformer {
     static Random rand = new Random();
 
     enum Mutation {
-        DELETE,
-        ALLOC;
+//        DELETE,
+        ALLOC,
+        TRUE_GUARD;
 
         static Mutation randomChoice() {
             Mutation[] all = Mutation.values();
@@ -49,17 +46,26 @@ class EMIMutator extends BodyTransformer {
         }
 
 
+        float mutationFrequency = 0.01f;
+        if (rand.nextFloat() > mutationFrequency) {
+            return;
+        }
+
         Mutation mutation = Mutation.randomChoice();
         switch(mutation) {
-            case DELETE:
+//            case DELETE:
 //                runDelete(b);
-                break;
+//                break;
             case ALLOC:
-//                runAlloc(b);
+                runAlloc(b);
+                break;
+            case TRUE_GUARD:
+                runTrueGuard(b);
                 break;
             default:
                 throw new RuntimeException("Unknown mutation " + mutation.toString());
         }
+        System.out.printf("Mutated %s with strategy %s.\n", b.getMethod().getSignature(), mutation.toString());
     }
 
     private String getMethodWithDescriptor(SootMethod method) {
@@ -67,8 +73,6 @@ class EMIMutator extends BodyTransformer {
     }
 
     private BytecodeCoverage.Level coverageOf(Body b, Unit unit) {
-        BytecodeCoverage.Level result;
-
         Tag offsetTag = unit.getTag("BytecodeOffsetTag");
         if (offsetTag == null) {
             return BytecodeCoverage.Level.NON_INSTRUCTION;
@@ -80,27 +84,122 @@ class EMIMutator extends BodyTransformer {
         }
     }
 
+    private Local makeLocal(Body b, Type t) {
+        String prefix = "emiVariable";
+        long numExisting = b.getLocals().stream().map(Local::getName).filter(name -> name.contains(prefix)).count();
+        String newLocal = prefix + (numExisting+1);
+        return Jimple.v().newLocal(newLocal, t);
+    }
+
+    private Value generateValue(Type t) {
+        if (t instanceof RefLikeType) {
+            return NullConstant.v();
+        } else if (t instanceof LongType) {
+            return LongConstant.v(rand.nextLong());
+        } else if (t instanceof IntType) {
+            return IntConstant.v(rand.nextInt());
+        } else {
+            return IntConstant.v(0);
+        }
+    }
+
+    private void runTrueGuard(Body b) {
+        Local newLocal = makeLocal(b, IntType.v());
+        b.getLocals().add(newLocal);
+
+        UnitPatchingChain units = b.getUnits();
+
+        // Insert an assignment at the beginning of the method.
+        Optional<Unit> firstUnit = units.stream().filter(u -> !(u instanceof JIdentityStmt)).findFirst();
+        if (!firstUnit.isPresent()) {
+            throw new RuntimeException("Attempted to mutate body of " + b.getMethod().getSignature() + " but it has no appropriate units.");
+        }
+        Unit assignLocation = firstUnit.get();
+        int value = rand.nextInt();
+        Unit initStmt = Jimple.v().newAssignStmt(newLocal, IntConstant.v(value));
+        units.insertBefore(initStmt, assignLocation);
+        // If assignment happens at the beginning of a try block, the variable might not be definitely assigned afterward.
+        // Start the trap range after the assignment.
+        b.getTraps().forEach(trap -> {
+            if (trap.getBeginUnit() == initStmt) {
+                trap.setBeginUnit(assignLocation);
+            }
+        });
+
+        // Now, pick a unit to get "wrapped".
+        List<Unit> candidates = units.stream()
+                .filter(u -> !(
+                        u instanceof JIdentityStmt || u instanceof MonitorStmt ||
+                        u instanceof ThrowStmt || u instanceof GotoStmt ||
+                        // Don't wrap <init> calls!
+                        u instanceof InvokeStmt && ((InvokeStmt) u).getInvokeExpr() instanceof SpecialInvokeExpr ||
+                        // Don't wrap new assignments (verifier doesn't seem to understand if both branches are "uninit")
+                        u instanceof AssignStmt && ((AssignStmt) u).getRightOp() instanceof AnyNewExpr
+                ))
+                .filter(u -> coverageOf(b, u) == BytecodeCoverage.Level.LIVE)
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return;
+        }
+        Unit choice = candidates.get(rand.nextInt(candidates.size()));
+
+        // Next, generate a valid replacement in the else branch. Sometimes this can be empty, but some statements (e.g.,
+        // assignments) need something in this dead else branch to pass bytecode validation.
+        NopStmt endIf = Jimple.v().newNopStmt();
+        Stmt elses;
+        if (choice instanceof AssignStmt) {
+            AssignStmt assignStmt = (AssignStmt) choice;
+            Type variableType = assignStmt.getLeftOp().getType();
+            if (assignStmt.getLeftOp() instanceof Local) {
+                // Locals are checked for definite assignment
+                elses = Jimple.v().newAssignStmt(assignStmt.getLeftOp(), generateValue(variableType));
+            } else {
+                elses = Jimple.v().newNopStmt();
+            }
+        } else if (choice instanceof ReturnVoidStmt) {
+            elses = Jimple.v().newReturnVoidStmt();
+        } else if (choice instanceof ReturnStmt) {
+            ReturnStmt returnStmt = (ReturnStmt) choice;
+            elses = Jimple.v().newReturnStmt(generateValue(returnStmt.getOp().getType()));
+        } else if (choice instanceof IfStmt || choice instanceof InvokeStmt || choice instanceof SwitchStmt) {
+            elses = Jimple.v().newNopStmt();
+        } else {
+            throw new RuntimeException("Unsupported unit type " + choice.getClass().getName());
+        }
+
+        // Finally, insert the if-guard before and the else case afterwards.
+        IfStmt ifStmt = Jimple.v().newIfStmt(Jimple.v().newNeExpr(newLocal, IntConstant.v(value)), elses);
+        units.insertBefore(ifStmt, choice);
+
+        List<Unit> toInsert = new ArrayList<>();
+        toInsert.add(Jimple.v().newGotoStmt(endIf)); // skip elses
+        toInsert.add(elses);
+        toInsert.add(endIf);
+        units.insertAfter(toInsert, choice);
+    }
+
     /* NOTE: This doesn't work very well, because it changes the roots set when performing a heap dump.
      * Maybe there's a better way to do this kind of transformation.
      */
     private void runAlloc(Body b) {
         UnitPatchingChain units = b.getUnits();
 
-        // Insert at beginning of method, after parameter initializations.
-        Optional<Unit> liveUnits = units.stream().filter(u -> u instanceof JIdentityStmt).findFirst();
-        if (!liveUnits.isPresent()) {
-            throw new RuntimeException("Attempted to mutate body of " + b.getMethod().getSignature() + " but it has no appropriate units.");
+        // Find somewhere to insert a new call.
+        List<Unit> candidates = units.stream()
+                .filter(u -> !(u instanceof JIdentityStmt))
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return;
         }
-        Unit toMutate = liveUnits.get();
+        Unit choice = candidates.get(rand.nextInt(candidates.size()));
 
-        Local l = Jimple.v().newLocal("emi_variable", RefType.v("java.lang.Object"));
+        Local l = makeLocal(b, RefType.v("java.lang.Object"));
         b.getLocals().add(l);
 
         List<Unit> toInsert = new ArrayList<>();
         toInsert.add(Jimple.v().newAssignStmt(l, Jimple.v().newNewExpr(RefType.v("java.lang.Object"))));
-        toInsert.add(Jimple.v().newAssignStmt(l, NullConstant.v()));
 
-        units.insertBefore(toInsert, toMutate);
+        units.insertBefore(toInsert, choice);
     }
 
 

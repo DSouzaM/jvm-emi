@@ -49,7 +49,7 @@ public class MutantGenerator {
         sootOptions.add("-d");
         sootOptions.add(outputPath);
         // Direct Soot to validate the output
-//        sootOptions.add("-validate");
+        sootOptions.add("-validate");
 
         // Parse coverage and add our transformer to the Soot pipeline
         BytecodeCoverage coverage = null;
@@ -58,7 +58,8 @@ public class MutantGenerator {
         } catch (ParserConfigurationException | IOException | SAXException e) {
             e.printStackTrace();
         }
-        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", new EMIMutator(coverage)));
+        EMIMutator mutator = new EMIMutator(coverage);
+        PackManager.v().getPack("jtp").add(new Transform("jtp.mytransform", mutator));
 
         // Run Soot
         String[] sootArgs = new String[sootOptions.size()];

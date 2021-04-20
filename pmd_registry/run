@@ -5,7 +5,7 @@ import subprocess
 
 
 def execute(command):
-    subprocess.run(command)
+    subprocess.check_output(command)
 
 
 def main():
